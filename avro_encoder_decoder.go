@@ -40,6 +40,7 @@ func NewAuth(user string, key string) *KafkaAvroAuth {
 type KafkaAvroEncoder struct {
 	primitiveSchemas map[string]avro.Schema
 	schemaRegistry   SchemaRegistryClient
+	nameFn           func(avro.Schema) string
 }
 
 func NewKafkaAvroEncoder(url string) *KafkaAvroEncoder {
@@ -60,7 +61,14 @@ func NewKafkaAvroEncoderAuth(url string, auth *KafkaAvroAuth) *KafkaAvroEncoder 
 	return &KafkaAvroEncoder{
 		schemaRegistry:   NewCachedSchemaRegistryClientAuth(url, auth),
 		primitiveSchemas: primitiveSchemas,
+		nameFn: func(schema avro.Schema) string {
+			return schema.GetName() + "-value"
+		},
 	}
+}
+
+func (this *KafkaAvroEncoder) SetNameFunction(fn func(schema avro.Schema) string) {
+	this.nameFn = fn
 }
 
 func (this *KafkaAvroEncoder) Encode(obj interface{}) ([]byte, error) {
@@ -69,7 +77,7 @@ func (this *KafkaAvroEncoder) Encode(obj interface{}) ([]byte, error) {
 	}
 
 	schema := this.getSchema(obj)
-	subject := schema.GetName() + "-value"
+	subject := this.nameFn(schema)
 	id, err := this.schemaRegistry.Register(subject, schema)
 	if err != nil {
 		return nil, err
